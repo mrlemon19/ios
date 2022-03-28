@@ -1,0 +1,70 @@
+#!/bin/sh
+# prvni projekt do ios 
+# vytvoril: Jakub Lukas aka xlukas18
+
+COMMAND=""
+DATEB="9999-99-99"
+DATEA="2020-03-01"
+GENDER=""
+WIDTH=0
+COMMLIST=(infected merege gender age daily countries districts regions)
+FILES=""
+FILES_GZ=""
+
+printh()
+{
+	echo "napoveda"
+}
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		COMMLIST)
+			COMMAND=$1
+			shift
+			;;
+		-h)
+			printh
+			exit
+			;;
+		-a)
+			DATEA=$2
+			shift
+			shift
+			;;
+		-b)
+			DATEB=$2
+			shift
+			shift
+			;;
+		-g)
+			GENDER=$2
+			shift
+			shift
+			;;
+		-s)
+			WIDTH=$2
+			shift
+			shift
+			;;
+		*)
+			if [ $1 =~ "(.(.gz))" ]; then
+				FILES_GZ="$1 $FILES_GZ"
+			else
+				FILES="$1 $FILES"
+			fi
+
+		esac
+done
+
+
+
+echo "command: "$COMMAND
+
+# echo "Script Name: $0"
+# echo "First Parameter of the script is $1"
+# echo "The second Parameter is $2"
+# echo "The complete list of arguments is $@"
+# echo "Total Number of Parameters: $#"
+# echo "The process ID is $$"
+# echo "Exit code for the script: $?"
+
