@@ -1,10 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 # prvni projekt do ios 
 # vytvoril: Jakub Lukas aka xlukas18
 
 COMMAND=""
 DATEB="9999-99-99"
-DATEA="2020-03-01"
+DATEA=""
 GENDER=""
 WIDTH=0
 COMMLIST=(infected merege gender age daily countries districts regions)
@@ -18,7 +18,7 @@ printh()
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
-		COMMLIST)
+		${COMMLIST})
 			COMMAND=$1
 			shift
 			;;
@@ -47,11 +47,8 @@ while [ "$#" -gt 0 ]; do
 			shift
 			;;
 		*)
-			if [ $1 =~ "(.(.gz))" ]; then
-				FILES_GZ="$1 $FILES_GZ"
-			else
-				FILES="$1 $FILES"
-			fi
+			exit
+			;;	
 
 		esac
 done
