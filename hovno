@@ -4,16 +4,34 @@
 
 COMMAND=""
 DATEB="9999-99-99"
-DATEA=""
+DATEA="2020-03-01"
 GENDER=""
 WIDTH=0
-COMMLIST=(infected merege gender age daily countries districts regions)
+COMMLIST=(infected merege gender age daily monthly yearly countries districts regions)
 FILES=""
 FILES_GZ=""
 
 printh()
 {
-	echo "napoveda"
+	echo "Usage: corona [FILTER] [COMMAND] [LOG [LOG]...]"
+	echo ""
+	echo "filters:"
+	echo "	-a, --after	-a [YYYY-MM-DD]		filters only dates after enterd date"
+	echo "	-b, --befhore	-b [YYYY-MM-DD]		filters only dates before entered date"
+	echo "	-g, --gender	-G [GENDER]		filters only -- of specific gender"
+	echo "commands:"
+	echo "	infected,	prints number of all infected from LOG"
+	echo "	merege, 	alignes all LOGs into one file"
+	echo "	gender		prints number of infected of speific gender Z|M"
+	echo "	age, 		prints number of infected of specific age group"
+	echo "	daily		prints number of infected for each day"
+	echo "	monthly		prints number of infected for each month"
+	echo "	yearly		prints number of infected for each year"
+	echo "	countries	prints number of infected for every country listed"
+	echo "	districts	prints number of infected for every district listed"
+	echo "	regions		prints number of infected for each region listed"
+	echo ""
+	echo "LOGs can be only in .cvs format"
 }
 
 while [ "$#" -gt 0 ]; do
@@ -47,21 +65,11 @@ while [ "$#" -gt 0 ]; do
 			shift
 			;;
 		*)
-			exit
-			;;	
+			FILES="$1 $FILES"
 
 		esac
 done
 
-
-
 echo "command: "$COMMAND
-
-# echo "Script Name: $0"
-# echo "First Parameter of the script is $1"
-# echo "The second Parameter is $2"
-# echo "The complete list of arguments is $@"
-# echo "Total Number of Parameters: $#"
-# echo "The process ID is $$"
-# echo "Exit code for the script: $?"
-
+echo "date after: "$DATEA
+echo "date before: "$DATEB
