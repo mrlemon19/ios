@@ -1,0 +1,207 @@
+#!/bin/sh
+# prvni projekt do ios 
+# vytvoril: Jakub Lukas aka xlukas18
+
+COMMAND=""
+GENDER=""
+DATEA=""
+DATEB="9999-99-99"
+WIDTH=0
+FILES=""
+FILES_GZ=""
+
+printh()
+{
+	echo "Usage: corona [FILTER] [COMMAND] [LOG [LOG]...]"
+	echo ""
+	echo "filters:"
+	echo "	-a, --after		-a [YYYY-MM-DD]		filters only dates after enterd date"
+	echo "	-b, --befhore	-b [YYYY-MM-DD]		filters only dates before entered date"
+	echo "	-g, --gender	-G [GENDER]			filters only -- of specific gender"
+	echo "commands:"
+	echo "	infected,	prints number of all infected from LOGs"
+	echo "	merege, 	alignes all LOGs and prints them to stdout"
+	echo "	gender		prints number of infected of speific gender Z|M"
+	echo "	age, 		prints number of infected devided to specific age groups"
+	echo "	daily		prints number of infected for each day"
+	echo "	monthly		prints number of infected for each month"
+	echo "	yearly		prints number of infected for each year"
+	echo "	countries	prints number of infected for every country listed"
+	echo "	districts	prints number of infected for every district listed"
+	echo "	regions		prints number of infected for each region listed"
+	echo ""
+	echo "LOGs can be only in .cvs or .gz format"
+}
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		infected | merge | gender | age | daily | monthly | yearly | countries | districts | regions)
+			COMMAND=$1
+			shift
+			;;
+		-h)
+			printh
+			exit
+			;;
+		-a)
+			DATEA=$2
+			shift
+			shift
+			;;
+		-b)
+			DATEB=$2
+			shift
+			shift
+			;;
+		-g)
+			GENDER=$2
+			shift
+			shift
+			;;
+		-s)
+			WIDTH=$2
+			shift
+			shift
+			;;
+		*.cvs)
+			FILES="$1 $FILES"
+			shift
+			;;
+		*.cvs.gz)
+			FILES_GZ="$1 $FILES_GZ"
+			shift
+			;;
+
+		esac
+done
+
+
+if [ -z $FILES_GZ ] & [ -n $FILES ]; then
+	INPUTR="cat $FILES"
+elif [ -z $FILES ] & [ -n $FILES_GZ ]; then
+	INPUTR="gzip -d -c $FILES_GZ"
+elif [ -z $FILES ] & [ -z $FILES_GZ ]; then
+	INPUTR="cat"
+else
+	INPUTR="gzip -d -c $FILES_GZ | cat $FILES -"
+fi
+
+
+DATA_FILTERED="$INPUTR | awk -v gender=$GENDER -v datea=$DATEA -v dateb=$DATEB -F"," '{
+		if ( gender == "" && datea <= $2 && dateb >= $2 ) {
+			print $0	
+		}
+		else {
+			if ( datea <= $2 && dateb >= $2 && $4 == gender ){
+				print $0
+			}
+		}
+	}'"
+
+ #FIXME 
+ # oprav filtr... misto eval $INPUTR dej eval DATA_FILTERED
+
+cinfected()
+{
+	eval $DATA_FILTERED | awk -v count=0 -F"," '{if ($3 > 0){count++}} END{print count}'
+}
+
+cmerge()
+{
+	echo "work in progress"
+	# slucuje vide filu do jednoho
+}
+
+cgender()
+{
+	eval $INPUTR | awk -v men=0 -v women=0 -F"," '{
+		if ($4 == "M"){
+			men++
+		}
+		else {
+			women++
+		}
+	}
+	END {print ("M: ", men "\n" "Z: ", women)}'
+}
+
+cage()
+{
+	eval $INPUTR | awk -v v1=0 -v v2=0 -v v3=0 -v v4=0 -v v5=0 -v v6=0 -v v7=0 -v v8=0 -v v9=0 -v v10=0 -v v11=0 -v v12=0 -v none=0 -F"," '{
+		if ( $3 < 6 ) {v1++}
+		if ( $3 > 5 && $3 < 16 ) {v2++}
+		if ( $3 > 15 && $3 < 26 ) {v3++}
+		if ( $3 > 25 && $3 < 36 ) {v4++}
+		if ( $3 > 35 && $3 < 46 ) {v5++}
+		if ( $3 > 45 && $3 < 56 ) {v6++}
+		if ( $3 > 55 && $3 < 66 ) {v7++}
+		if ( $3 > 65 && $3 < 76 ) {v8++}
+		if ( $3 > 75 && $3 < 86 ) {v9++}
+		if ( $3 > 85 && $3 < 96 ) {v10++}
+		if ( $3 > 95 && $3 < 106 ) {v11++}
+		if ( $3 > 105 ) {v12++}
+		if ( $3 == "" ) {none++}
+	}
+	END {print ("0-5	:",v1)
+	 	print("6-15	:",v2)
+	 	print("16-25	:",v3)
+	 	print("26-35	:",v4)
+	 	print("36-45	:",v5)
+	 	print("46-55	:",v6)
+	 	print("56-65	:",v7)
+	 	print("66-75	:",v8)
+	 	print("76-85	:",v9)
+	 	print("86-95	:",v10)
+	 	print("96-105	:",v11)
+	 	print(">105	:",v12)
+		print("none	:",none)}'
+}
+
+ccountries()
+{
+	eval $INPUTR | awk 
+}
+
+if [ -z $COMMAND ]; then
+	eval $DATA_FILTERED
+fi
+
+case $COMMAND in
+	infected)
+		cinfected
+		;;
+	merge)
+		cmerge
+		;;
+	gender)
+		cgender
+		;;
+	age)
+		cage
+		;;
+	daily)
+		cdaily
+		;;
+	monthly)
+		cmonthly
+		;;
+	yearly)
+		cyearly
+		;;
+	countries)
+		ccountries
+		;;
+	districts)
+		cistrict
+		;;
+	regions)
+		cregions
+		;;
+	
+esac
+
+# echo "data filtered: "$DATA_FILTERED
+echo "command: "$COMMAND
+echo "min date: "$DATEA
+echo "max date: "$DATEB
+echo "readinput: "$INPUTR
