@@ -5,13 +5,16 @@
 #include <semaphore.h>
 #include <sys/sem.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <sys/stat.h>
 #include <time.h>
 
 #define MMAP(pointer) {(pointer) = mmap(NULL, sizeof(*(pointer)), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);}
 #define UNMAP(pointer) {munmap((pointer), sizeof((pointer)));}
+
+// prekladat takto:     cc -std=gnu99 -Wall -Wextra -Werror -pedantic proj2.c -o proj2
 
 //int *sharedmem = NULL;
 //FILE *pfile;
@@ -27,9 +30,7 @@ int init()
     else{
         return 0;
     }
-
 }
-
 void clean()
 {
     UNMAP(sharedmem);
@@ -38,12 +39,6 @@ void clean()
     if (pfile != NULL) fclose(pfile);
 }
 */
-
-int getRandom(int max)
-{
-    int num = (rand() % max + 1);
-    return num;
-}
 
 void raiseErr()
 {
@@ -54,9 +49,10 @@ void processOx(int id, int dell)
 {
     id++;
     srand(time(0));
-    int sleeptime = getRandom(dell);   // FIXME dodelat random generovani zpozdeni
+    int sleeptime = (rand() % dell + 1);   // FIXME dodelat random generovani zpozdeni
     usleep(sleeptime);
-    printf("process Ox no. %d with dellay: %d \n", id, sleeptime);
+    printf("process Ox no. %d generated\n", id);
+    printf("process Hy no. %d ended \n", id);
     exit(0);
 }
 
@@ -64,9 +60,10 @@ void processHy(int id, int dell)
 {
     id++;
     srand(time(0));
-    int sleeptime = getRandom(dell);   // FIXME dedelat random generovani zpozdeni
+    int sleeptime = (rand() % dell + 1);   // FIXME dedelat random generovani zpozdeni
     usleep(sleeptime);
-    printf("process Hy no. %d with dellay: %d \n", id, sleeptime);
+    printf("process Hy no. %d generated\n", id);
+    printf("process Hy no. %d ended \n", id);
     exit(0);
 }
 
@@ -75,6 +72,7 @@ void genO(int nox, int dell)
     for (int i = 0; i < nox; i++){
         pid_t ox = fork();
         if (ox == 0){
+            printf("ox num. %d generating\n", i);
             processOx(i, dell);
         }
     }
@@ -86,6 +84,7 @@ void genH(int nhy, int dell)
     for (int i = 0; i < nhy; i++){
         pid_t hy = fork();
         if (hy == 0){
+            printf("hy num. %d generating\n", i);
             processHy(i, dell);
         }
     }
@@ -114,7 +113,6 @@ int inputSort(char **argv)
 
 int main(int argc, char **argv)
 {
-    printf("program started \n");
     // kontrola vstupu
     if (argc != 5){
         fprintf(stderr, "chyba vstupu: spatny pocet argumentu \n");
@@ -137,20 +135,32 @@ int main(int argc, char **argv)
     int delay = atoi(argv[3]);
 
     pid_t hlavni = fork();
+    pid_t wpid;
+    int status = 0;
     if (hlavni < 0)
     {
         raiseErr();
     }
     else if (hlavni == 0)
     {
-        // child process
-        genO(NO, delay);
+        pid_t OH = fork();
+        pid_t wpid2;
+        if (OH < 0)
+        {
+            raiseErr();
+        }
+        if (OH == 0)
+        {
+            genO(NO, delay);
+        }
+        else{
+            genH(NH, delay);
+        }
+        while ((wpid2 = wait(&status)) > 0);
+        
     }
-    else 
-    {
-        // main process
-        genH(NH, delay);
-    }
+
+    while ((wpid = wait(&status)) > 0);
 
     exit(0);
     //clean(); // uklizeci funkce
