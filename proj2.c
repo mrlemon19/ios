@@ -449,45 +449,21 @@ int main(int argc, char **argv)
         exit (1);
     }
     
+    // prirazovani vstupnich dat do promenych
     *allox = atoi(argv[1]);
     *allhy = atoi(argv[2]);
     int delay1 = atoi(argv[3]);
     int delay2 = atoi(argv[4]);
-
-    //pid_t hlavni = fork();
     
     pid_t wpid;         // pro cekani hlavniho procesu na ukonceni vedlejsich
     int status = 0;
 
-    /*
-    if (hlavni < 0)     // kontrola selhani forku
-    {
-        raiseErr();
-    }
-    else if (hlavni == 0)
-    {
-        pid_t OH = fork();
-
-        if (OH < 0)     // kontrola chyby forku
-        {
-            raiseErr();
-        }
-        if (OH == 0)    // child proces 1 generuje kyslik
-        {
-            genO(*allox, delay1, delay2);
-        }
-        else{
-            genH(*allhy, delay1, delay2);   // child proces 2 generuje vodik
-        }        
-    }
-    */
-
-   genO(*allox, delay1, delay2);
-   genH(*allhy, delay1);
+   genO(*allox, delay1, delay2);    // funkce na generovani NO procesu kysliku
+   genH(*allhy, delay1);            // funkce na generovani NH procesu vodiku
 
     while ((wpid = wait(&status)) > 0);         // cekani nez se ukonci vedlejsi procesy
 
-    exit(0);
     clean(); // odmapuje spolecne promene a odstrani semafory
+    exit(0);
     return 0;
 }
