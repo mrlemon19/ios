@@ -213,7 +213,7 @@ void processOx(int id, int dell1, int dell2)
     sem_post(printGrd);
 
     usleep(sleeptime2);     // zpozdeni vytvareni molekuly
-    sem_post(semsleep);
+    sem_post(semsleep);     // cas pro vytvoreni molekyly ubehne a kyslik signalizuje vodiky
     sem_post(semsleep);
 
     sem_wait(printGrd);     // vypise molekula vytvorena
@@ -249,11 +249,10 @@ void processOx(int id, int dell1, int dell2)
 }
 
 // proces vodiku
-void processHy(int id, int dell1, int dell2)
+void processHy(int id, int dell1)
 {
     id++;   // unikatni cislo procesu
     int sleeptime1;
-    int sleeptime2;
     srand(id * time(0));    // nastavy seed pro random podle casu a id procesu
     // nastavy nahodny cas zpozdeni
     if (dell1 != 0){
@@ -261,12 +260,6 @@ void processHy(int id, int dell1, int dell2)
     }
     else{
         sleeptime1 = 0; 
-    }
-    if (dell2 != 0){
-        sleeptime2 = (rand() % dell2 + 1);
-    }
-    else{
-        sleeptime2 = 0;
     }
 
     fprintf(pfile, "%d: H %d: started\n",*printnum, id); // vypise ze proces zacal
@@ -344,9 +337,7 @@ void processHy(int id, int dell1, int dell2)
         (*printnum)++;
     sem_post(printGrd);
 
-    //usleep(sleeptime2);
-    (void) sleeptime2;
-    sem_wait(semsleep);
+    sem_wait(semsleep); // defaultne na 0, vodik ceka na kyslik
 
     sem_wait(printGrd); // vypisuje ze molekula byla vytvorena
         fprintf(pfile, "%d: H %d: molecule %d created\n",*printnum, id, *molnum);
@@ -389,24 +380,32 @@ void genO(int no, int dell1, int dell2)
     int nox = no;       // celkovy pocet procesu kysliku
     for (int i = 0; i < nox; i++){
         pid_t ox = fork();
+
+        if (ox < 0){
+            raiseErr();
+        }
         if (ox == 0){
             processOx(i, dell1, dell2);
         }
     }
-    exit(0);
+    //exit(0);
 }
 
 // vytvori zadany pocet procesu vodiku pomoci volani fork
-void genH(int nh, int dell1, int dell2)
+void genH(int nh, int dell1)
 {
     int nhy = nh;       // celkovy pocet procesu vodiku
     for (int i = 0; i < nhy; i++){
         pid_t hy = fork();
+
+        if (hy < 0){
+            raiseErr();
+        }
         if (hy == 0){
-            processHy(i, dell1, dell2);
+            processHy(i, dell1);
         }
     }
-    exit(0);
+    //exit(0);
 }
 
 // vytridi a zkontroluje zadana cisla 
@@ -455,11 +454,12 @@ int main(int argc, char **argv)
     int delay1 = atoi(argv[3]);
     int delay2 = atoi(argv[4]);
 
-    pid_t hlavni = fork();
+    //pid_t hlavni = fork();
     
     pid_t wpid;         // pro cekani hlavniho procesu na ukonceni vedlejsich
     int status = 0;
 
+    /*
     if (hlavni < 0)     // kontrola selhani forku
     {
         raiseErr();
@@ -480,6 +480,10 @@ int main(int argc, char **argv)
             genH(*allhy, delay1, delay2);   // child proces 2 generuje vodik
         }        
     }
+    */
+
+   genO(*allox, delay1, delay2);
+   genH(*allhy, delay1);
 
     while ((wpid = wait(&status)) > 0);         // cekani nez se ukonci vedlejsi procesy
 
