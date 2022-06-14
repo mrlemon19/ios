@@ -14,18 +14,18 @@
 #define MMAP(pointer) {(pointer) = mmap(NULL, sizeof(*(pointer)), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);}
 #define UNMAP(pointer) {munmap((pointer), sizeof((pointer)));}
 
-// prekladat takto:     cc -std=gnu99 -pthread -Wall -Wextra -Werror -pedantic proj2.c -o proj2
-// projekt cislo 2 do predmetu IOS
-// vypracoval: Jakub Lukas, xlukas18
+// project number 2 to operating systems seminar 2021/22
+// author: Jakub Lukas, xlukas18
 //
-// Program se spousti ve formatu: ./proj2 NO NH TI TB
-// Program hned po spusteni zkontroluje vstupni data a alokuje potrebne zdroje.
-// Nasledne vytvori NH procesu vodiku a NO procesu kysliku.
-// Tyto procesy se postupne radi do fronty, ze ktere jsou nasledne uvolnovany vzdy dva vodiky a jeden kyslik a vytvari molekuly vody (H2O).
-// Jakmile proces nema dostatek dalsich ingredienci vypise not enough O or H.
-// Program pote, uvolni alokovane zdrojea a konci s kodem exit 0.
+// execute program in this format: ./proj2 NO NH TI TB
+// When executed, program checks input data and allocates needed resources
+// Then creates NO processes of oxygen and NH processes of hydrogen
+// Those processes gather in line and when two hydrogen processes and one oxygen process are waiting in the line
+// they are released and form a molecule of water (H2O)
+// After there are no more processes in line to create a molecule, not enough O or H message is printed
+// allocated memory and all semaphores are freed then
 
-// inicializace spolecnych promenych a semaforu
+// creating shared memory pointers and semaphores
 FILE *pfile;
 int *hy = NULL;
 int *ox = NULL;
@@ -44,7 +44,7 @@ sem_t *barrier2 = NULL;
 sem_t *barMutex = NULL;
 sem_t *semsleep = NULL;
 
-// mapovani spolecne pameti a semaforu
+// mapping shared memory with MMAP and openning semaphores
 int init()
 {
     pfile = fopen("proj2.out", "w");
@@ -75,7 +75,7 @@ int init()
     else return 0;
 }
 
-// ukizeci funkce, odmapovava spolecnou pamet a odstranuje semafory
+// cleanning function, unmaps all shared memory, closes and unlinks all semaphores
 void clean()
 {
     UNMAP(hy);
@@ -105,21 +105,15 @@ void clean()
     if (pfile != NULL) fclose(pfile);
 }
 
-// vypise error
-void raiseErr()
-{
-    fprintf(stderr, "chyba forku \n");
-}
-
-// proces kysliku
+// oxygen process
 void processOx(int id, int dell1, int dell2)
 {
-    id++;   // unikatni cislo procesu
-    srand(id * time(0));    // nastavy seed pro random podle casu a id procesu
+    id++;   // unique oxygen process id
+    srand(id * time(0));    // sets random seed with time
     int sleeptime1;
     int sleeptime2;
     
-    // nastavy nahodny cas zpozdeni
+    // sets random sleeptime with process id
     if (dell1 != 0){
         sleeptime1 = (rand() % dell1 + 1);
     }
@@ -133,27 +127,28 @@ void processOx(int id, int dell1, int dell2)
         sleeptime2 = 0;
     }
     
-    // printGrd je semafor nastaveny na 0 zajistuje, ze na vystup v jednu chvili zapisoval jen jeden proces 
+    // printGrd semaphore protects output, so there is only one process printing on it
     sem_wait(printGrd);
-        fprintf(pfile, "%d: O %d: started\n",*printnum, id);    // zapise ze proces zacal
+        fprintf(pfile, "%d: O %d: started\n",*printnum, id);    // prints that process started
         fflush(pfile);
-        (*printnum)++;  // printnum je cislo radku na ktery porces zapisuje
+        (*printnum)++;  // number of line in printed output
     sem_post(printGrd);
     
-    usleep(sleeptime1); // zpozdeni 1
+    usleep(sleeptime1); // delay of molecule creating time
     
-    sem_wait(mutex);       // ze zacatku na 1 aby pustil alespon jeden proces
+    sem_wait(mutex);       // mutex has value of 1 at start, so at least one process comes through
+    // procrss is going to ox queue
 
     sem_wait(printGrd);
-        (*ox)++;        // ox je cislo nactenych procesu kyslku cekajicich ve fronte qvOx
-        (*allox)--;     // allox je cislo nenactenych procesu kysliku
-        fprintf(pfile, "%d: O %d: going to queue\n",*printnum, id); // vypise ze proces jde do rady
+        (*ox)++;        // global number of ox procesess that are waiting in oxqv
+        (*allox)--;     // number of ox processes created
+        fprintf(pfile, "%d: O %d: going to queue\n",*printnum, id);
         fflush(pfile);
         (*printnum)++;
     sem_post(printGrd);
 
-    // kontrola nedostatku komponent pro vytvoreni molekuly
-    // kdyz proces nema dost vodiku na vytvoreni molekuly vypise: not enough H
+    // checking if there is enough processes to form a molecule
+    // if there is not, prints not enough O
     if ((*allhy == 0 && *hy < 2) || (*allhy <2 && *hy == 0)){
         sem_wait(printGrd);
             fprintf(pfile, "%d: O %d: not enough H\n",*printnum, id);
@@ -166,7 +161,7 @@ void processOx(int id, int dell1, int dell2)
     }
 
     // bond
-    // kdyz je ve frontach dostatek procesu na vytvoreni molekyly, propusti tyto procesy do tvorby molekuly
+    // if there are at least 2 hy processes and 1 ox in queues, processes are freed from queues and send to barriere
     if (*hy >= 2) {
         sem_post(qvHy);
         sem_post(qvHy);
@@ -176,10 +171,11 @@ void processOx(int id, int dell1, int dell2)
         }
     else sem_post(mutex);
 
-    sem_wait(qvOx); // defaultne na 0, fronta na kysliky
+    sem_wait(qvOx); // semaphore symulating the oxygen queue
 
-    // sekundarni kontrola nedostatku zdroju na vytvoreni molekuly
-    // kdyz je nedostatek nalezen (to urcuje prmena noten), propusti se cekajici procesy skrz frontu a ukonci se
+    // checking if there is enough processes to continue
+    // when signal flag noten is up (there is no way a molecule can be formed), all processes in queues are freed
+    // "not enough" message is printed 
     if (*noten > 0){
         sem_wait(printGrd);
             fprintf(pfile, "%d: O %d: not enough H\n",*printnum, id);
@@ -194,10 +190,10 @@ void processOx(int id, int dell1, int dell2)
     }
 
     // barrier
-    sem_wait(barMutex);     // defaultne na 1 aby pustil alespon jeden proces, potom postupne po jednom pousti procesy na tvorbu molekuly
+    sem_wait(barMutex);     // lets processes in barrier one by one, 1 on default
 
-    (*count)++;    // pocet procesu tvoricich molekulu
-    if (*count == 3){   // propusti procesy, jakmile cekaji vsechny na bariere 1
+    (*count)++;    // number of processes inside barrier
+    if (*count == 3){   // just 3 processes passes barrier1 so processes forming a molecule are together and synchronised
         sem_post(barrier1);
         sem_post(barrier1);
         sem_post(barrier1);
@@ -206,26 +202,26 @@ void processOx(int id, int dell1, int dell2)
 
     sem_wait(barrier1);
 
-    sem_wait(printGrd);     // vypise, ze tvori molekulu
+    sem_wait(printGrd);     // creating molecule
         fprintf(pfile, "%d: O %d: creating molecule %d\n",*printnum, id, *molnum);
         fflush(pfile);
         (*printnum)++;
     sem_post(printGrd);
 
-    usleep(sleeptime2);     // zpozdeni vytvareni molekuly
-    sem_post(semsleep);     // cas pro vytvoreni molekyly ubehne a kyslik signalizuje vodiky
+    usleep(sleeptime2);     // delay symulating creating of the molecule
+    sem_post(semsleep);     // after dellay 2 hy processes are freed form semsleep semaphore
     sem_post(semsleep);
 
-    sem_wait(printGrd);     // vypise molekula vytvorena
+    sem_wait(printGrd);     // molecule is created
         fprintf(pfile, "%d: O %d: molecule %d created\n",*printnum, id, *molnum);
         fflush(pfile);
         (*printnum)++;
     sem_post(printGrd);
 
     (*count)--;
-    if (*count == 0){   // vsechny 3 procesy dorazi na barieru 2 a jsou zaroven propusteny 
-        (*molnum)++;    // pro vypis, cislo molekuly
-        // kontrola zda je dost ingradienci pro vytvoreni dalsi molekuly, kdyz ne uvolni prebytecne procesy fronty a nastavy parametr noten na >0
+    if (*count == 0){   // all processes are simultaneously freed from barrier2 after finished creating molenuce
+        (*molnum)++;    // number of molecule
+        // checking if another molecule can be formed, if not sets noten flag to 1
         if (((*allox + *ox) < 1) || ((*allhy + *hy) < 2)){
             (*noten)++;
 
@@ -248,21 +244,29 @@ void processOx(int id, int dell1, int dell2)
     exit(0);
 }
 
-// proces vodiku
-void processHy(int id, int dell1)
+// hydrogen process
+void processHy(int id, int dell1, int dell2)
 {
-    id++;   // unikatni cislo procesu
+    id++;   // unique process number
     int sleeptime1;
-    srand(id * time(0));    // nastavy seed pro random podle casu a id procesu
-    // nastavy nahodny cas zpozdeni
+    int sleeptime2;
+    srand(id * time(0));    // sets seed according to time
+
+    // sest random delay time according to id
     if (dell1 != 0){
         sleeptime1 = (rand() % dell1 + 1);
     }
     else{
         sleeptime1 = 0; 
     }
+    if (dell2 != 0){
+        sleeptime2 = (rand() % dell2 + 1);
+    }
+    else{
+        sleeptime2 = 0;
+    }
 
-    fprintf(pfile, "%d: H %d: started\n",*printnum, id); // vypise ze proces zacal
+    fprintf(pfile, "%d: H %d: started\n",*printnum, id); // process started
         fflush(pfile);
         (*printnum)++;
     sem_post(printGrd);
@@ -270,15 +274,15 @@ void processHy(int id, int dell1)
 
     sem_wait(mutex);
 
-    sem_wait(printGrd); // vypise ze jde do fronty na vodiky
-        (*hy)++;
-        (*allhy)--;
+    sem_wait(printGrd); // process is going to hydro queue
+        (*hy)++;        // number of hy processes waiting in hyQv
+        (*allhy)--;     // number of created hy processes
         fprintf(pfile, "%d: H %d: going to queue\n",*printnum, id);
         fflush(pfile);
         (*printnum)++;
     sem_post(printGrd);
 
-    // kontrola dostatku dalsich procesu pro tvorbu molekuly
+    // checks if it's possible to create a molecule
     if ((*allox == 0 && *ox == 0) || (*hy <2 && *allhy == 0)){
         sem_wait(printGrd);
             fprintf(pfile, "%d: H %d: not enough O or H\n",*printnum, id);
@@ -290,8 +294,8 @@ void processHy(int id, int dell1)
         exit(0);
     }
 
-    // samotna tvorba molekuly
-    // ksyz je na frontach dost procesy vosiku a kysliku propusti je pres fronty qvOx a qvHy
+    // bond
+    // if there is enough processes in queues to bond a molecule, those processes are freed and go to barrier
     if (*hy >= 2 && *ox >= 1) {
         sem_post(qvHy);
         sem_post(qvHy);
@@ -301,10 +305,10 @@ void processHy(int id, int dell1)
         }
     else sem_post(mutex);
 
-    sem_wait(qvHy); // fornta na procesy vodiku
+    sem_wait(qvHy); // hydro queue
 
-    // kontrola nedostatku dalsich procesu pro tvorbu molekuly
-    // kdyz je nedostatek, proces vypise not enough hlasku a ukonci se
+    // checks if there is enough processes to form a molecule by noten flag
+    // in case of shortage of needed processes all processes are freed from queues and "not enough" message is printed
     if (*noten > 0){
         sem_wait(printGrd);
             fprintf(pfile, "%d: H %d: not enough O or H\n",*printnum, id);
@@ -319,7 +323,7 @@ void processHy(int id, int dell1)
     }
 
     // barrier
-    sem_wait(barMutex); // vstup do bariery propousti procesy po jednom na tvorbu molekuly
+    sem_wait(barMutex); // lets one process at time inside barrier
     
     (*count)++;
     if (*count == 3){
@@ -329,17 +333,18 @@ void processHy(int id, int dell1)
     }
     else sem_post(barMutex);
 
-    sem_wait(barrier1); // kdyz jsou vsechny 3 procesy na bariere 1, jsou pusteny
+    sem_wait(barrier1); // all 3 processes to create a molecule are let in barrier at same time
 
-    sem_wait(printGrd); // vypise se vytvareni molekuly
+    sem_wait(printGrd); // creating molecule
         fprintf(pfile, "%d: H %d: creating molecule %d\n",*printnum, id, *molnum);
         fflush(pfile);
         (*printnum)++;
     sem_post(printGrd);
 
-    sem_wait(semsleep); // defaultne na 0, vodik ceka na kyslik
+    (void) sleeptime2;
+    sem_wait(semsleep);
 
-    sem_wait(printGrd); // vypisuje ze molekula byla vytvorena
+    sem_wait(printGrd); // moelcule created
         fprintf(pfile, "%d: H %d: molecule %d created\n",*printnum, id, *molnum);
         fflush(pfile);
         (*printnum)++;
@@ -349,8 +354,7 @@ void processHy(int id, int dell1)
     if (*count == 0){
         (*molnum)++;
 
-        // kontrola dostatku ingredienci pro tvorbu dalsi molekuly
-        // pri nedostatku je parametr noten nastaven na >0 a procesy navic jsou propusteny pres fronty
+        // checking if another molecule can be formed, if not sets noten flag to 1
         if (((*allox + *ox) < 1) || ((*allhy + *hy) < 2)){
             (*noten)++;
 
@@ -369,46 +373,38 @@ void processHy(int id, int dell1)
         sem_post(mutex);    
     }
 
-    sem_wait(barrier2); // pote co vsechny procesy vypisou molecule created jsou propusteny pres druhou barieru
+    sem_wait(barrier2); // after all 3 processes are waiting on 2. barrier, they are freed at one time
 
     exit(0);
 }
 
-// vytvori zadany pocet procesu kysliku pomoci volani fork
+// creates NO oxygen processes with fork
 void genO(int no, int dell1, int dell2)
 {
-    int nox = no;       // celkovy pocet procesu kysliku
+    int nox = no;       // number of all oxygen processes
     for (int i = 0; i < nox; i++){
         pid_t ox = fork();
-
-        if (ox < 0){
-            raiseErr();
-        }
         if (ox == 0){
             processOx(i, dell1, dell2);
         }
     }
-    //exit(0);
+    exit(0);
 }
 
-// vytvori zadany pocet procesu vodiku pomoci volani fork
-void genH(int nh, int dell1)
+// creates NH hydrogen processes with fork
+void genH(int nh, int dell1, int dell2)
 {
-    int nhy = nh;       // celkovy pocet procesu vodiku
+    int nhy = nh;       // number of all hydrogen processes
     for (int i = 0; i < nhy; i++){
         pid_t hy = fork();
-
-        if (hy < 0){
-            raiseErr();
-        }
         if (hy == 0){
-            processHy(i, dell1);
+            processHy(i, dell1, dell2);
         }
     }
-    //exit(0);
+    exit(0);
 }
 
-// vytridi a zkontroluje zadana cisla 
+// checks validity of input data
 int inputSort(char **argv)
 {
     int argv1 = atoi(argv[1]);
@@ -416,12 +412,12 @@ int inputSort(char **argv)
     int argv3 = atoi(argv[3]);
     int argv4 = atoi(argv[4]);
 
-    // kontrola poctu vodiku a kysliku
+    // checks number of ox and hy on input
     if (argv1 < 0 || argv2 < 0){
         fprintf(stderr, "spatny format dat \n");
         return 1;
     }
-    // kontrola zda je zpozdeni zadano ve spravnem intervalu
+    // checks if time is in correct range
     else if (argv3 < 0 || argv3 > 1000 || argv4 < 0 || argv4 > 1000){
         fprintf(stderr, "chyba vstupu: spatny rozsah casu \n");
         return 1;
@@ -433,37 +429,56 @@ int inputSort(char **argv)
 
 int main(int argc, char **argv)
 {
-    // kontrola vstupu
+    // number of arguments check
     if (argc != 5){
         fprintf(stderr, "chyba vstupu: spatny pocet argumentu \n");
         exit (1);
     }
 
-    // kontroka vstupu
+    // input check
     if (inputSort(argv)) exit (1);
     
-    // vytvareni semaforu a mapovani spolecnych promenych
+    // shared memory and semaphore init
     if (init() == 1){
         fprintf(stderr, "error: chyba pri vytvareni semaforu\n");
         clean();
         exit (1);
     }
     
-    // prirazovani vstupnich dat do promenych
     *allox = atoi(argv[1]);
     *allhy = atoi(argv[2]);
     int delay1 = atoi(argv[3]);
     int delay2 = atoi(argv[4]);
+
+    pid_t hlavni = fork();
     
-    pid_t wpid;         // pro cekani hlavniho procesu na ukonceni vedlejsich
+    pid_t wpid;         // for main process to wait till child processes are dead
     int status = 0;
 
-   genO(*allox, delay1, delay2);    // funkce na generovani NO procesu kysliku
-   genH(*allhy, delay1);            // funkce na generovani NH procesu vodiku
+    if (hlavni < 0)     // fork error check
+    {
+        fprintf(stderr, "fork error \n");
+    }
+    else if (hlavni == 0)
+    {
+        pid_t OH = fork();
 
-    while ((wpid = wait(&status)) > 0);         // cekani nez se ukonci vedlejsi procesy
+        if (OH < 0)     // fork error check
+        {
+            fprintf(stderr, "fork error \n");
+        }
+        if (OH == 0)    // child process 1 generates oxygen
+        {
+            genO(*allox, delay1, delay2);
+        }
+        else{
+            genH(*allhy, delay1, delay2);   // child process 2 generates hydrogen
+        }        
+    }
 
-    clean(); // odmapuje spolecne promene a odstrani semafory
+    while ((wpid = wait(&status)) > 0);         // waiting for child processes to end
+
     exit(0);
+    clean(); // cleaning function
     return 0;
 }
