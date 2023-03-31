@@ -7,4 +7,4 @@ $(PROJ): $(PROJ).c
 	$(CC) $(CFLAGS) -o $(PROJ) $(PROJ).c
 
 clean:
-	$(RM)*.o $(PROJ)
+	$(RM) *.o $(PROJ) proj2.out
